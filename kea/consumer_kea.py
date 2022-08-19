@@ -1,84 +1,39 @@
-# implements Kafka topic consumer functionality
+from uuid import uuid4
+from consumer import EventsConsumer
+from producer import proceed_to_deliver
 
 
-import threading
-from confluent_kafka import Consumer, OFFSET_BEGINNING
-import json
+class KeaEventsConsumer(EventsConsumer):
 
-operations = {}
+    def __init__(self, topic=None) -> None:
+        if topic is None:
+            topic = "kea"
+        super().__init__(topic)
+        self.operations = {}
+        self._self_test_req_id = None
+        self._send_self_test_request()
 
-def handle_event(id, details):    
-    # print(f"[debug] handling event {id}, {details}")
-    # print(f"[info] handling event {id}, {details['source']}->{details['deliver_to']}: {details['operation']}")
-    parse_operation(id, details)
+    def _send_self_test_request(self):
+        req_id = uuid4().__str__()
+        self._self_test_req_id = req_id
+        details = {
+            "id": req_id,
+            "operation": "self_test",
+            "deliver_to": self.topic
+        }
+        proceed_to_deliver(id=req_id, details=details)
 
-def dump_sequence(operations):
-    seq = "$->"
-    source = None
-    for event in operations:
-        if source is None or source != event["source"]:
-            seq += event["source"] + "->" + event["deliver_to"]
+    def handle_event(self, id, details):
+        # print(f"[debug][KEA] handling event {id}, {details}")
+        # print(f"[info] handling event {id}, {details['source']}->{details['deliver_to']}: {details['operation']}")
+        if id != self._self_test_req_id:
+            print(
+                f"[error] self test failed! unexpected event id {id} received! Expected id: {self._self_test_req_id}\n{details}")
         else:
-            seq += "->" + event["deliver_to"]
-        source = event["deliver_to"]
-    return seq + "->#"
-
-def parse_operation(id, details):
-    if id in operations:
-        operations[id].append(details)
-        print(f"accumulated sequence: {dump_sequence(operations[id])}")
-    else:
-        operations[id] = [details]
-
-
-def consumer_job(args, config):
-    # Create Consumer instance
-    monitor_consumer = Consumer(config)
-
-    # Set up a callback to handle the '--reset' flag.
-    def reset_offset(monitor_consumer, partitions):
-        if args.reset:
-            for p in partitions:
-                p.offset = OFFSET_BEGINNING
-            monitor_consumer.assign(partitions)
-
-    # Subscribe to topic
-    topic = "monitor"
-    monitor_consumer.subscribe([topic], on_assign=reset_offset)
-
-    # Poll for new messages from Kafka and print them.
-    try:
-        while True:
-            msg = monitor_consumer.poll(1.0)
-            if msg is None:
-                # Initial message consumption may take up to
-                # `session.timeout.ms` for the consumer group to
-                # rebalance and start consuming
-                # print("Waiting...")
-                pass
-            elif msg.error():
-                print(f"[error] {msg.error()}")
-            else:
-                # Extract the (optional) key and value, and print.
-                try:
-                    id = msg.key().decode('utf-8')
-                    details_str = msg.value().decode('utf-8')
-                    # print("[debug] consumed event from topic {topic}: key = {key:12} value = {value:12}".format(
-                    #     topic=msg.topic(), key=id, value=details_str))
-                    handle_event(id, json.loads(details_str))
-                except Exception as e:
-                    print(
-                        f"[error] malformed event received from topic {topic}: {msg.value()}. {e}")
-    except KeyboardInterrupt:
-        pass
-    finally:
-        # Leave group and commit final offsets
-        monitor_consumer.close()
-
-
-def start_consumer(args, config):
-    threading.Thread(target=lambda: consumer_job(args, config)).start()
+            print(
+                "[info] self test passed, communication with the message broker established")
 
 
 if __name__ == '__main__':
-    start_consumer(None)
+    kea_ec = KeaEventsConsumer(topic="kea")
+    kea_ec.start_consumer(args=None, config=None)

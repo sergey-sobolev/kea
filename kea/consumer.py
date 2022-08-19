@@ -5,38 +5,37 @@ import threading
 from confluent_kafka import Consumer, OFFSET_BEGINNING
 import json
 
-operations = {}
 
 class EventsConsumer:
-    topic = None
-
     def __init__(self, topic=None) -> None:
         self.topic = topic
+        self._consumer = None
 
-    def handle_event(self, id, details):    
+    def handle_event(self, id, details):
         # print(f"[debug] handling event {id}, {details}")
-        print(f"[info] handling event {id}, {details['source']}->{details['deliver_to']}: {details['operation']}")        
-
+        # print(f"[info] handling event {id}, {details['source']}->{details['deliver_to']}: {details['operation']}")
+        print(
+            f"[debug] received event with id {id}. Note, this is a dummy callback and is supposed to be overloaded")
 
     def consumer_job(self, args, config, topic):
         # Create Consumer instance
-        monitor_consumer = Consumer(config)
+        self._consumer = Consumer(config)
 
         # Set up a callback to handle the '--reset' flag.
-        def reset_offset(monitor_consumer, partitions):
+        def reset_offset(consumer, partitions):
             if args.reset:
+                print(f"[debug] resetting reading order for {consumer}")
                 for p in partitions:
                     p.offset = OFFSET_BEGINNING
-                monitor_consumer.assign(partitions)
+                consumer.assign(partitions)
 
         # Subscribe to topic
-        self.topic = topic
-        monitor_consumer.subscribe([self.topic], on_assign=reset_offset)
+        self._consumer.subscribe([topic], on_assign=reset_offset)
 
         # Poll for new messages from Kafka and print them.
         try:
             while True:
-                msg = monitor_consumer.poll(1.0)
+                msg = self._consumer.poll(1.0)
                 if msg is None:
                     # Initial message consumption may take up to
                     # `session.timeout.ms` for the consumer group to
@@ -52,7 +51,7 @@ class EventsConsumer:
                         details_str = msg.value().decode('utf-8')
                         # print("[debug] consumed event from topic {topic}: key = {key:12} value = {value:12}".format(
                         #     topic=msg.topic(), key=id, value=details_str))
-                        EventsConsumer.handle_event(id, json.loads(details_str))
+                        self.handle_event(id, json.loads(details_str))
                     except Exception as e:
                         print(
                             f"[error] malformed event received from topic {topic}: {msg.value()}. {e}")
@@ -60,13 +59,15 @@ class EventsConsumer:
             pass
         finally:
             # Leave group and commit final offsets
-            monitor_consumer.close()
-
+            self._consumer.close()
 
     def start_consumer(self, args, config, topic=None):
         if topic is not None:
             self.topic = topic
-        threading.Thread(target=lambda: self.consumer_job(args, config, topic)).start()
+        if self.topic is None:
+            raise BaseException("Topic name must not be empty!")
+        threading.Thread(target=lambda: self.consumer_job(
+            args, config, self.topic)).start()
 
 
 if __name__ == '__main__':

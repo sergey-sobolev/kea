@@ -1,84 +1,39 @@
-# implements Kafka topic consumer functionality
+from consumer import EventsConsumer
 
 
-import threading
-from confluent_kafka import Consumer, OFFSET_BEGINNING
-import json
+class MonitorEventsConsumer(EventsConsumer):
+    def __init__(self, topic=None) -> None:
+        if topic is None:
+            topic = "monitor"
+        super().__init__(topic)
+        self.operations = {}
 
-operations = {}
+    def handle_event(self, id, details):    
+        # print(f"[debug][MEC] handling event {id}")
+        # print(f"[debug][MEC] handling event {id}, {details}")
+        # print(f"[info] handling event {id}, {details['source']}->{details['deliver_to']}: {details['operation']}")
+        self.parse_operation(id, details)
 
-def handle_event(id, details):    
-    # print(f"[debug] handling event {id}, {details}")
-    # print(f"[info] handling event {id}, {details['source']}->{details['deliver_to']}: {details['operation']}")
-    parse_operation(id, details)
-
-def dump_sequence(operations):
-    seq = "$->"
-    source = None
-    for event in operations:
-        if source is None or source != event["source"]:
-            seq += event["source"] + "->" + event["deliver_to"]
-        else:
-            seq += "->" + event["deliver_to"]
-        source = event["deliver_to"]
-    return seq + "->#"
-
-def parse_operation(id, details):
-    if id in operations:
-        operations[id].append(details)
-        print(f"accumulated sequence: {dump_sequence(operations[id])}")
-    else:
-        operations[id] = [details]
-
-
-def consumer_job(args, config):
-    # Create Consumer instance
-    monitor_consumer = Consumer(config)
-
-    # Set up a callback to handle the '--reset' flag.
-    def reset_offset(monitor_consumer, partitions):
-        if args.reset:
-            for p in partitions:
-                p.offset = OFFSET_BEGINNING
-            monitor_consumer.assign(partitions)
-
-    # Subscribe to topic
-    topic = "monitor"
-    monitor_consumer.subscribe([topic], on_assign=reset_offset)
-
-    # Poll for new messages from Kafka and print them.
-    try:
-        while True:
-            msg = monitor_consumer.poll(1.0)
-            if msg is None:
-                # Initial message consumption may take up to
-                # `session.timeout.ms` for the consumer group to
-                # rebalance and start consuming
-                # print("Waiting...")
-                pass
-            elif msg.error():
-                print(f"[error] {msg.error()}")
+    def dump_sequence(self, operations):
+        seq = "$->"
+        source = None
+        for event in operations:
+            if source is None or source != event["source"]:
+                seq += event["source"] + "->" + event["deliver_to"]
             else:
-                # Extract the (optional) key and value, and print.
-                try:
-                    id = msg.key().decode('utf-8')
-                    details_str = msg.value().decode('utf-8')
-                    # print("[debug] consumed event from topic {topic}: key = {key:12} value = {value:12}".format(
-                    #     topic=msg.topic(), key=id, value=details_str))
-                    handle_event(id, json.loads(details_str))
-                except Exception as e:
-                    print(
-                        f"[error] malformed event received from topic {topic}: {msg.value()}. {e}")
-    except KeyboardInterrupt:
-        pass
-    finally:
-        # Leave group and commit final offsets
-        monitor_consumer.close()
+                seq += "->" + event["deliver_to"]
+            source = event["deliver_to"]
+        return seq + "->#"
 
-
-def start_consumer(args, config):
-    threading.Thread(target=lambda: consumer_job(args, config)).start()
+    def parse_operation(self, id, details):
+        if id in self.operations:
+            self.operations[id].append(details)
+            print(f"accumulated sequence: {self.dump_sequence(self.operations[id])}")
+        else:
+            self.operations[id] = [details]
+            print(f"started new sequence: {self.dump_sequence(self.operations[id])}")
 
 
 if __name__ == '__main__':
-    start_consumer(None)
+    mec = MonitorEventsConsumer(topic="monitor")
+    mec.start_consumer(args=None, config=None, topic=None)
