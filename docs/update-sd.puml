@@ -1,0 +1,39 @@
+@startuml update-sequence
+
+actor "User" as u
+participant Downloader
+participant Manager
+participant Manager
+participant Storage
+participant Verifier
+participant Updater
+
+
+u -> Manager: start process
+Manager -> Downloader++: read update file(s)
+Downloader --> Manager--
+Manager -> Storage++: write update file(s)
+Storage --> Manager--
+Manager -> Verifier++: check update file(s)
+Verifier -> Storage--: read update file(s)
+activate Storage
+Storage --> Verifier--
+activate Verifier
+Verifier -> Verifier: check
+Verifier --> Manager--
+Manager -> Manager: check verification result
+alt verification successful
+Manager -> Updater++: request update
+Updater -> Storage: read update file(s)
+deactivate Updater
+activate Storage
+Storage --> Updater
+deactivate Storage
+activate Updater
+Updater -> Updater: update process
+else verification failed
+Manager -> Manager: log error
+end
+
+
+@enduml

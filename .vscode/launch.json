@@ -11,10 +11,13 @@
             "program": "analyzer.py",
             "console": "integratedTerminal",
             "justMyCode": true,
-            "args": ["../config.ini"
+            "args": ["../config.ini",
+            "--states_def", "../states.def",
+            "--expect", "../expected.txt",
+            "--checker", "../sq_checker",
             //, "--reset"
         ],
             "cwd": "${workspaceFolder}/kea"
-        }   
+        }
     ]
 }

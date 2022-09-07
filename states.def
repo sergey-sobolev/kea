@@ -1,0 +1,5 @@
+def verifier;
+def updater;
+def downloader;
+def manager;
+def storage;

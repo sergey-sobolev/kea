@@ -1,0 +1,8 @@
+// expect no failure
+allowed=manager->downloader->manager->storage->manager->verifier(2)->storage->verifier(1)->manager->updater->storage->updater->#;
+
+// expect failure
+//allowed=manager->downloader->manager->storage->manager->verifier(2)->storage->verifier(2)->manager->#;
+
+// allow transmission faults 
+//allowed=manager->downloader->manager->storage->manager->verifier(2)->storage->[verifier(1)->manager->updater->storage->updater]|[verifier(2)->manager]->#;

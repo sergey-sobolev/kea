@@ -1,0 +1,3 @@
+//allowed=manager->downloader->manager->storage->manager->verifier(2)->storage->verifier(1)->manager->updater->storage->updater->#;
+allowed=manager->downloader->manager->storage->manager->verifier(2)->#;
+executed=manager->downloader->manager->storage->manager->verifier(1)->storage->verifier(1)->manager;

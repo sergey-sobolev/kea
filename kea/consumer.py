@@ -10,6 +10,7 @@ class EventsConsumer:
     def __init__(self, topic=None) -> None:
         self.topic = topic
         self._consumer = None
+        self.args = None
 
     def handle_event(self, id, details):
         # print(f"[debug] handling event {id}, {details}")
@@ -62,6 +63,7 @@ class EventsConsumer:
             self._consumer.close()
 
     def start_consumer(self, args, config, topic=None):
+        self.args = args
         if topic is not None:
             self.topic = topic
         if self.topic is None:
